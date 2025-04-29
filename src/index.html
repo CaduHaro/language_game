@@ -1,1 +1,274 @@
+<!DOCTYPE html><html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Jogo de Aprender Inglês</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f8ff;
+      text-align: center;
+      padding: 20px;
+    }
+    #gameBoard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+      gap: 10px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    button {
+      padding: 15px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.2s;
+    }
+    button:hover {
+      background: #f0f0f0;
+      transform: scale(1.05);
+    }
+    button.revealed {
+      background: #fff3cd;
+    }
+    button.matched {
+      background: #4caf50;
+      color: white;
+      cursor: default;
+      transform: none;
+    }
+  </style>
+</head>
+<body><h1>Jogo de Inglês</h1><div id="gameArea" style="display: flex; justify-content: center; gap: 50px; margin: 20px;">
+  <div id="englishColumn" style="background: #e0f0ff; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,255,0.1); display: flex; flex-direction: column; gap: 10px;">
+    <h2>Inglês 🇺🇸</h2>
+  </div>
+  <div id="portugueseColumn" style="background: #e0ffe0; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,128,0,0.1); display: flex; flex-direction: column; gap: 10px;">
+    <h2>Português 🇧🇷</h2>
+  </div>
+</div><div id="victory" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); color:white; font-size:36px; align-items:center; justify-content:center; flex-direction:column; z-index:1000;">
+  <div>🎉 Parabéns! Você venceu! 🎉</div>
+  <canvas id="fireworks" width="800" height="600" style="margin-top:20px;"></canvas>
+</div><!-- Vocabulário Aprendido --><div id="vocab" style="margin-top: 40px; text-align: left; max-width: 600px; margin-left: auto; margin-right: auto;">
+  <h2>Vocabulário Aprendido</h2>
+  <table style="width:100%; border-collapse: collapse;">
+    <thead>
+      <tr>
+        <th style="border-bottom:1px solid #ccc; text-align:left; padding:8px;">Inglês</th>
+        <th style="border-bottom:1px solid #ccc; text-align:left; padding:8px;">Português</th>
+        <th style="border-bottom:1px solid #ccc; text-align:left; padding:8px;">Acertos</th>
+        <th style="border-bottom:1px solid #ccc; text-align:left; padding:8px;">Tentativas</th>
+        <th style="border-bottom:1px solid #ccc; text-align:left; padding:8px;">% Acerto</th>
+      </tr>
+    </thead>
+    <tbody id="vocabBody"></tbody>
+  </table>
+</div><script>
+  const wordPool = [
+    { en: "Dog", pt: "Cachorro" },
+    { en: "Cat", pt: "Gato" },
+    { en: "House", pt: "Casa" },
+    { en: "Car", pt: "Carro" },
+    { en: "Book", pt: "Livro" },
+    { en: "Water", pt: "Água" },
+    { en: "Food", pt: "Comida" },
+    { en: "Friend", pt: "Amigo" },
+    { en: "Sun", pt: "Sol" },
+    { en: "Moon", pt: "Lua" },
+    { en: "Star", pt: "Estrela" },
+    { en: "Sky", pt: "Céu" },
+    { en: "Tree", pt: "Árvore" },
+    { en: "Flower", pt: "Flor" },
+    { en: "Bird", pt: "Pássaro" },
+    { en: "Rain", pt: "Chuva" }
+  ];
 
+  let selections = [];
+  let matchedCount = 0;
+  let stats = JSON.parse(localStorage.getItem("vocabStats")) || {};
+  let isLocked = false;
+
+  const englishColumn = document.getElementById("englishColumn");
+  const portugueseColumn = document.getElementById("portugueseColumn");
+
+  function shuffle(array) {
+    return array.sort(() => Math.random() - 0.5);
+  }
+
+  function startGame() {
+    matchedCount = 0;
+    selections = [];
+    isLocked = false;
+    englishColumn.querySelectorAll("button").forEach(btn => btn.remove());
+    portugueseColumn.querySelectorAll("button").forEach(btn => btn.remove());
+
+    const selectedPairs = shuffle([...wordPool]).slice(0, 8);
+    const englishWords = shuffle(selectedPairs.map(pair => ({ text: pair.en, match: pair.pt, lang: "en" })));
+    const portugueseWords = shuffle(selectedPairs.map(pair => ({ text: pair.pt, match: pair.en, lang: "pt" })));
+
+    englishWords.forEach(word => {
+      const button = document.createElement("button");
+      button.textContent = word.text;
+      button.dataset.match = word.match;
+      button.dataset.lang = word.lang;
+      button.addEventListener("click", () => handleSelection(button));
+      englishColumn.appendChild(button);
+    });
+
+    portugueseWords.forEach(word => {
+      const button = document.createElement("button");
+      button.textContent = word.text;
+      button.dataset.match = word.match;
+      button.dataset.lang = word.lang;
+      button.addEventListener("click", () => handleSelection(button));
+      portugueseColumn.appendChild(button);
+    });
+  }
+
+  function handleSelection(button) {
+    if (isLocked || button.classList.contains("matched") || button.classList.contains("revealed")) return;
+
+    button.classList.add("revealed");
+    selections.push(button);
+
+    if (button.dataset.lang === "en") speakWord(button.textContent);
+
+    if (selections.length === 2) {
+      isLocked = true;
+      const [first, second] = selections;
+      if (first.dataset.match === second.textContent || second.dataset.match === first.textContent) {
+        const key = first.dataset.lang === 'en' ? first.textContent : second.textContent;
+        if (!stats[key]) stats[key] = { word: key, match: first.dataset.lang === 'en' ? second.textContent : first.textContent, attempts: 0, correct: 0 };
+        stats[key].attempts++;
+        stats[key].correct++;
+        first.classList.add("matched");
+        second.classList.add("matched");
+        matchedCount += 2;
+        playCorrectSound();
+        if (matchedCount === 16) setTimeout(showVictory, 500);
+      }
+      setTimeout(() => {
+        selections.forEach(btn => btn.classList.remove("revealed"));
+
+        selections.forEach(btn => {
+          const key = btn.dataset.lang === 'en' ? btn.textContent : btn.dataset.match;
+          if (!stats[key]) stats[key] = { word: key, match: btn.dataset.lang === 'en' ? btn.dataset.match : btn.textContent, attempts: 0, correct: 0 };
+          if (!btn.classList.contains("matched")) stats[key].attempts++;
+        });
+
+        selections = [];
+        isLocked = false;
+        updateVocab();
+      }, 1000);
+    }
+  }
+
+  function speakWord(word) {
+    const utterance = new SpeechSynthesisUtterance(word);
+    utterance.lang = "en-US";
+    speechSynthesis.speak(utterance);
+  }
+
+  function playCorrectSound() {
+    const audio = new Audio("https://cdn.pixabay.com/download/audio/2022/03/15/audio_10d708a1aa.mp3?filename=game-win-6406.mp3");
+    audio.play();
+  }
+
+  function showVictory() {
+    const victoryDiv = document.getElementById("victory");
+    victoryDiv.style.display = "flex";
+    startFireworks();
+    setTimeout(() => {
+      victoryDiv.style.display = "none";
+      updateVocab();
+  startGame();
+    }, 4000);
+  }
+
+  function startFireworks() {
+    const canvas = document.getElementById('fireworks');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    let particles = [];
+
+    function createParticle(x, y) {
+      const angle = Math.random() * 2 * Math.PI;
+      const speed = Math.random() * 5 + 2;
+      return {
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 100
+      };
+    }
+
+    function updateParticles() {
+      for (let p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.05;
+        p.life--;
+      }
+      particles = particles.filter(p => p.life > 0);
+    }
+
+    function drawParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'white';
+      for (let p of particles) {
+        ctx.globalAlpha = p.life / 100;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    }
+
+    function loop() {
+      updateParticles();
+      drawParticles();
+      requestAnimationFrame(loop);
+    }
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      for (let i = 0; i < 100; i++) {
+        particles.push(createParticle(x, y));
+      }
+    });
+
+    setInterval(() => {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height * 0.5;
+      for (let i = 0; i < 100; i++) {
+        particles.push(createParticle(x, y));
+      }
+    }, 800);
+
+    loop();
+  }
+
+  startGame();
+function updateVocab() {
+    localStorage.setItem("vocabStats", JSON.stringify(stats));
+
+    const tbody = document.getElementById("vocabBody");
+    tbody.innerHTML = "";
+    Object.values(stats).forEach(entry => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td style="padding:6px; border-bottom:1px solid #eee;">${entry.word}</td>
+        <td style="padding:6px; border-bottom:1px solid #eee;">${entry.match}</td>
+        <td style="padding:6px; border-bottom:1px solid #eee;">${entry.correct}</td>
+        <td style="padding:6px; border-bottom:1px solid #eee;">${entry.attempts}</td>
+        <td style="padding:6px; border-bottom:1px solid #eee;">${Math.round((entry.correct / entry.attempts) * 100)}%</td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+</script></body>
+</html>
