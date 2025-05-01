@@ -16,6 +16,8 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
+      min-height: 60vh; /* ocupa parte da altura da tela */
+      justify-content: flex-end; /* empurra para baixo */
     }
 
     @media (min-width: 600px) {
@@ -25,7 +27,7 @@
         gap: 15px;
       }
     }
-
+    
     #englishColumn,
     #portugueseColumn {
       background: #e0f0ff;
@@ -37,6 +39,8 @@
       gap: 5px;
       width: 100%;
       box-sizing: border-box;
+      flex-grow: 1; /* permite que ocupem o espaço disponível */
+      justify-content: flex-end; /* empurra os botões para baixo */
     }
 
     #portugueseColumn {
